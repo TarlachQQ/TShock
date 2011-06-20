@@ -47,7 +47,7 @@ namespace TShockAPI
         public static bool SpawnProtect = true;
         public static bool RangeChecks = true;
         public static int SpawnProtectRadius = 5;
-        public static string DistributationAgent = "facepunch";
+        public static string DistributationAgent = "terraria-online";
         public static int AuthToken;
         public static int MaxSlots = 8;
         public static bool SpamChecks = false;
