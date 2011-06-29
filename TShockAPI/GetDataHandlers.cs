@@ -21,9 +21,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Microsoft.Xna.Framework;
-using StreamBinary;
 using Terraria;
 using TerrariaAPI;
+using XNAHelpers;
 
 namespace TShockAPI
 {
@@ -108,6 +108,7 @@ namespace TShockAPI
                 {PacketTypes.TileKill, HandleTileKill},
                 {PacketTypes.PlayerKillMe, HandlePlayerKillMe},
                 {PacketTypes.LiquidSet, HandleLiquidSet},
+                {PacketTypes.PlayerSpawn, HandleSpawn},
             };
         }
 
@@ -132,13 +133,10 @@ namespace TShockAPI
         {
             byte playerid = args.Data.ReadInt8();
             byte hair = args.Data.ReadInt8();
-            Color hairColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
-            Color skinColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
-            Color eyeColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
-            Color shirtColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
-            Color underShirtColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
-            Color pantsColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
-            Color shoeColor = new Color(args.Data.ReadInt8(), args.Data.ReadInt8(), args.Data.ReadInt8());
+            //Various colours here
+
+            args.Data.Position += 21;
+            bool hardcore = args.Data.ReadBoolean();
             string name = Encoding.ASCII.GetString(args.Data.ReadBytes((int)(args.Data.Length - args.Data.Position - 1)));
 
             if (hair >= Main.maxHair)
@@ -166,6 +164,12 @@ namespace TShockAPI
             {
                 return Tools.HandleGriefer(args.Player, "Sent client info more than once");
             }
+            if (ConfigurationManager.HardcoreOnly)
+                if (!hardcore)
+                {
+                    Tools.ForceKick(args.Player, "Server is set to hardcore characters only!");
+                    return true;
+                }
 
             args.Player.ReceivedInfo = true;
             return false;
@@ -204,9 +208,12 @@ namespace TShockAPI
 
                 if (ConfigurationManager.RangeChecks && ((Math.Abs(plyX - tileX) > 32) || (Math.Abs(plyY - tileY) > 32)))
                 {
-                    Log.Debug(string.Format("TilePlaced(PlyXY:{0}_{1}, TileXY:{2}_{3}, Result:{4}_{5}, Type:{6})",
-                                            plyX, plyY, tileX, tileY, Math.Abs(plyX - tileX), Math.Abs(plyY - tileY), tiletype));
-                    return Tools.HandleGriefer(args.Player, "Placing impossible to place blocks.");
+                    if (!(type == 1 && ((tiletype == 0 && args.Player.TPlayer.selectedItem == 114) || (tiletype == 53 && args.Player.TPlayer.selectedItem == 266))))
+                    {
+                        Log.Debug(string.Format("TilePlaced(PlyXY:{0}_{1}, TileXY:{2}_{3}, Result:{4}_{5}, Type:{6})",
+                                                plyX, plyY, tileX, tileY, Math.Abs(plyX - tileX), Math.Abs(plyY - tileY), tiletype));
+                        return Tools.HandleGriefer(args.Player, "Placing impossible to place blocks.");
+                    }
                 }
                 if (tiletype == 48 && !args.Player.Group.HasPermission("canspike"))
                 {
@@ -215,6 +222,12 @@ namespace TShockAPI
                     args.Player.SendTileSquare(x, y);
                     return true;
                 }
+            }
+            if (!args.Player.Group.HasPermission("editspawn") && RegionManager.InProtectedArea(x, y, Tools.GetPlayerIP(args.Player.Name)))
+            {
+                args.Player.SendMessage("Region protected from changes.", Color.Red);
+                args.Player.SendTileSquare(x, y);
+                return true;
             }
             if (ConfigurationManager.DisableBuild)
             {
@@ -245,6 +258,13 @@ namespace TShockAPI
                 if (!args.Player.TilesDestroyed.ContainsKey(coords))
                     args.Player.TilesDestroyed.Add(coords, Main.tile[x, y]);
             }
+            if (args.Player.LastExplosive != null)
+                if ((DateTime.UtcNow - args.Player.LastExplosive).TotalMilliseconds < 1000)
+                {
+                    args.Player.SendMessage("Please wait another " + (1000 - (DateTime.UtcNow - args.Player.LastExplosive).TotalMilliseconds).ToString() + " milliseconds before placing/destroying tiles", Color.Red);
+                    args.Player.SendTileSquare(x, y);
+                    return true;
+                }
 
             return false;
         }
@@ -294,6 +314,7 @@ namespace TShockAPI
             {
                 return Tools.HandleGriefer(args.Player, "Update Player abuse");
             }
+
             return false;
         }
 
@@ -312,7 +333,16 @@ namespace TShockAPI
             if (type == 29 || type == 28 || type == 37)
             {
                 Log.Debug(string.Format("Explosive(PlyXY:{0}_{1}, Type:{2})", args.Player.TileX, args.Player.TileY, type));
-                return Tools.HandleExplosivesUser(args.Player, "Throwing an explosive device.");
+                if (ConfigurationManager.DisableBoom && (!args.Player.Group.HasPermission("useexplosives") || !args.Player.Group.HasPermission("ignoregriefdetection")))
+                {
+                    Main.projectile[ident].type = 0;
+                    args.Player.SendData(PacketTypes.ProjectileNew, "", ident);
+                    args.Player.SendMessage("Explosives are disabled!", Color.Red);
+                    args.Player.LastExplosive = DateTime.UtcNow;
+                    //return true;
+                }
+                else
+                    return Tools.HandleExplosivesUser(args.Player, "Throwing an explosive device.");
             }
             return false;
         }
@@ -320,10 +350,6 @@ namespace TShockAPI
         private static bool HandlePlayerKillMe(GetDataHandlerArgs args)
         {
             byte id = args.Data.ReadInt8();
-            byte hitdirection = args.Data.ReadInt8();
-            short dmg = args.Data.ReadInt16();
-            bool pvp = args.Data.ReadBoolean();
-
             if (id != args.Player.Index)
             {
                 return Tools.HandleGriefer(args.Player, "Trying to execute KillMe on someone else.");
@@ -334,11 +360,10 @@ namespace TShockAPI
         private static bool HandlePlayerDamage(GetDataHandlerArgs args)
         {
             byte playerid = args.Data.ReadInt8();
-            byte direction = args.Data.ReadInt8();
-            Int16 damage = args.Data.ReadInt16();
-            byte pvp = args.Data.ReadInt8();
+            if (playerid >= 0 && playerid <= Main.maxPlayers && TShock.Players[playerid] != null)
+                return !TShock.Players[playerid].TPlayer.hostile;
 
-            return !TShock.Players[playerid].TPlayer.hostile;
+            return ConfigurationManager.PermaPvp;
         }
 
         private static bool HandleLiquidSet(GetDataHandlerArgs args)
@@ -426,6 +451,33 @@ namespace TShockAPI
                 Tools.ForceKick(args.Player, string.Format("Tile Kill abuse ({0})", Main.tile[tilex, tiley].type));
                 return true;
             }
+            return false;
+        }
+
+        private static bool HandleSpawn(GetDataHandlerArgs args)
+        {
+            byte player = args.Data.ReadInt8();
+            int spawnx = args.Data.ReadInt32();
+            int spawny = args.Data.ReadInt32();
+
+            if (args.Player.InitSpawn)
+            {
+                if (ConfigurationManager.HardcoreOnly && (ConfigurationManager.KickOnHardcoreDeath || ConfigurationManager.BanOnHardcoreDeath))
+                    if (args.TPlayer.selectedItem != 50)
+                    {
+                        if (ConfigurationManager.BanOnHardcoreDeath)
+                        {
+                            if (!Tools.Ban(args.Player, "Death results in a ban"))
+                                Tools.ForceKick(args.Player, "Death results in a ban, but can't ban you");
+                        }
+                        else
+                            Tools.ForceKick(args.Player, "Death results in a kick");
+                        return true;
+                    }
+            }
+            else
+                args.Player.InitSpawn = true;
+
             return false;
         }
     }

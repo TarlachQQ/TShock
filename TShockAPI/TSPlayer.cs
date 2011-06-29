@@ -35,6 +35,11 @@ namespace TShockAPI
         public bool ReceivedInfo { get; set; }
         public int Index { get; protected set; }
         public DateTime LastPvpChange { get; protected set; }
+        public Rectangle TempArea = new Rectangle();
+        public DateTime LastExplosive { get; set; }
+        public bool InitSpawn = false;
+        public bool DisplayLogs = true;
+
         public bool RealPlayer
         {
             get { return Index >= 0 && Index < Main.maxNetPlayers; }
@@ -127,12 +132,47 @@ namespace TShockAPI
 
         public virtual void Disconnect(string reason)
         {
-            NetMessage.SendData((int)PacketTypes.Disconnect, Index, -1, reason, 0x0, 0f, 0f, 0f);
+            SendData(PacketTypes.Disconnect, reason);
+        }
+
+        public bool Teleport(int tileX, int tileY)
+        {
+            this.InitSpawn = false;
+            int spawnTileX = Main.spawnTileX;
+            int spawnTileY = Main.spawnTileY;
+            Main.spawnTileX = tileX;
+            Main.spawnTileY = tileY;
+            SendData(PacketTypes.WorldInfo);
+            SendTileSquare(tileX, tileY, 50);
+
+            if (TPlayer.SpawnX > 0 && TPlayer.SpawnY > 0)
+            {
+                Main.tile[TPlayer.SpawnX, TPlayer.SpawnY].active = false;
+                NetMessage.SendTileSquare(Index, TPlayer.SpawnX, TPlayer.SpawnY, 1);
+                Spawn();
+                Main.tile[TPlayer.SpawnX, TPlayer.SpawnY].active = true;
+                NetMessage.SendTileSquare(Index, TPlayer.SpawnX, TPlayer.SpawnY, 1);
+                SendMessage("Warning! Your bed spawn point has been destroyed because of warp", Color.Red);
+            }
+            else
+            {
+                Spawn();
+            }
+
+            Main.spawnTileX = spawnTileX;
+            Main.spawnTileY = spawnTileY;
+            SendData(PacketTypes.WorldInfo);
+            return true;
+        }
+
+        public void Spawn()
+        {
+            SendData(PacketTypes.PlayerSpawn,  "", Index, 0.0f, 0.0f, 0.0f);
         }
 
         public virtual void SendTileSquare(int x, int y, int size = 10)
         {
-            NetMessage.SendData((int)PacketTypes.TileSendSquare, Index, -1, "", size, (float)(x - (size / 2)), (float)(y - (size / 2)), 0f);
+            SendData(PacketTypes.TileSendSquare, "", size, (float)(x - (size / 2)), (float)(y - (size / 2)), 0f);
         }
 
         public virtual void GiveItem(int type, string name, int width, int height, int stack)
@@ -160,7 +200,7 @@ namespace TShockAPI
 
         public virtual void SendMessage(string msg, byte red, byte green, byte blue)
         {
-            NetMessage.SendData((int)PacketTypes.ChatText, Index, -1, msg, 255, red, green, blue);
+            SendData(PacketTypes.ChatText, msg, 255, red, green, blue);
         }
 
         public virtual void DamagePlayer(int damage)
@@ -180,6 +220,13 @@ namespace TShockAPI
             NetMessage.SendData((int)PacketTypes.TogglePVP, -1, -1, "", Index);
         }
 
+        //Todo: Separate this into a few functions. SendTo, SendToAll, etc
+        public void SendData(PacketTypes msgType, string text = "", int number = 0, float number2 = 0f, float number3 = 0f, float number4 = 0f, int number5 = 0)
+        {
+            if (RealPlayer && !ConnectionAlive)
+                return;
+            NetMessage.SendData((int)msgType, Index, -1, text, number, number2, number3, number4, number5);
+        }
     }
 
     public class TSServerPlayer : TSPlayer

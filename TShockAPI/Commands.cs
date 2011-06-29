@@ -93,7 +93,7 @@ namespace TShockAPI
     }
     public static class Commands
     {
-        private static List<Command> ChatCommands = new List<Command>();
+        public static List<Command> ChatCommands = new List<Command>();
 
         public static void InitCommands()
         {
@@ -102,6 +102,7 @@ namespace TShockAPI
             ChatCommands.Add(new Command("banip", "ban", BanIP));
             ChatCommands.Add(new Command("unban", "unban", UnBan));
             ChatCommands.Add(new Command("unbanip", "unban", UnBanIP));
+            ChatCommands.Add(new Command("whitelist", "whitelist", Whitelist));
             ChatCommands.Add(new Command("off", "maintenance", Off));
             ChatCommands.Add(new Command("off-nosave", "maintenance", OffNoSave));
             ChatCommands.Add(new Command("checkupdates", "maintenance", CheckUpdates));
@@ -119,17 +120,21 @@ namespace TShockAPI
             ChatCommands.Add(new Command("home", "tp", Home));
             ChatCommands.Add(new Command("spawn", "tp", Spawn));
             ChatCommands.Add(new Command("tp", "tp", TP));
-            ChatCommands.Add(new Command("tphere", "tp", TPHere));
+            ChatCommands.Add(new Command("tphere", "tphere", TPHere));
+            ChatCommands.Add(new Command("warp", "warp", UseWarp));
+            ChatCommands.Add(new Command("setwarp", "managewarp", SetWarp));
+            ChatCommands.Add(new Command("delwarp", "managewarp", DeleteWarp));
             ChatCommands.Add(new Command("reload", "cfg", Reload));
             ChatCommands.Add(new Command("debug-config", "cfg", DebugConfiguration));
             ChatCommands.Add(new Command("password", "cfg", Password));
             ChatCommands.Add(new Command("save", "cfg", Save));
             ChatCommands.Add(new Command("maxspawns", "cfg", MaxSpawns));
             ChatCommands.Add(new Command("spawnrate", "cfg", SpawnRate));
-            ChatCommands.Add(new Command("time", "cfg", Time));
+            ChatCommands.Add(new Command("time", "time", Time));
             ChatCommands.Add(new Command("slap", "pvpfun", Slap));
             ChatCommands.Add(new Command("antibuild", "editspawn", ToggleAntiBuild));
             ChatCommands.Add(new Command("protectspawn", "editspawn", ProtectSpawn));
+            ChatCommands.Add(new Command("region", "editspawn", Region));
             ChatCommands.Add(new Command("help", "", Help));
             ChatCommands.Add(new Command("playing", "", Playing));
             ChatCommands.Add(new Command("online", "", Playing));
@@ -138,11 +143,11 @@ namespace TShockAPI
             ChatCommands.Add(new Command("me", "", ThirdPerson));
             ChatCommands.Add(new Command("p", "", PartyChat));
             ChatCommands.Add(new Command("rules", "", Rules));
-            ChatCommands.Add(new Command("whitelist", "maintenance", Whitelist));
+            ChatCommands.Add(new Command("displaylogs", "logs", Rules));
             if (ConfigurationManager.DistributationAgent != "terraria-online")
             {
                 ChatCommands.Add(new Command("kill", "kill", Kill));
-                ChatCommands.Add(new Command("butcher", "cheat", Butcher));
+                ChatCommands.Add(new Command("butcher", "butcher", Butcher));
                 ChatCommands.Add(new Command("i", "cheat", Item));
                 ChatCommands.Add(new Command("item", "cheat", Item));
                 ChatCommands.Add(new Command("give", "cheat", Give));
@@ -177,19 +182,18 @@ namespace TShockAPI
 
             if (cmd == null)
             {
+                return false;
+            }
+
+            if (!cmd.CanRun(player))
+            {
+                Tools.SendLogs(string.Format("{0} tried to execute {1}", player.Name, cmd.Name), Color.Red);
+                player.SendMessage("You do not have access to that command.", Color.Red);
             }
             else
             {
-                if (!cmd.CanRun(player))
-                {
-                    Tools.SendLogs(string.Format("{0} tried to execute {1}", player.Name, cmd.Name), Color.Red);
-                    player.SendMessage("You do not have access to that command.", Color.Red);
-                }
-                else
-                {
-                    Tools.SendLogs(string.Format("{0} executed: /{1}", player.Name, cmdText), Color.Red);
-                    cmd.Run(cmdText, player, args);
-                }
+                Tools.SendLogs(string.Format("{0} executed: /{1}", player.Name, cmdText), Color.Red);
+                cmd.Run(cmdText, player, args);
             }
             return true;
         }
@@ -412,6 +416,23 @@ namespace TShockAPI
             {
                 args.Player.SendMessage("Invalid player!", Color.Red);
             }
+        }
+
+        public static void Whitelist(CommandArgs args)
+        {
+            if (args.Parameters.Count == 1)
+            {
+                TextWriter tw = new StreamWriter(FileTools.WhitelistPath, true);
+                tw.WriteLine(args.Parameters[0]);
+                tw.Close();
+                args.Player.SendMessage("Added " + args.Parameters[0] + " to the whitelist.");
+            }
+        }
+
+        public static void DisplayLogs(CommandArgs args)
+        {
+            args.Player.DisplayLogs = (!args.Player.DisplayLogs);
+            args.Player.SendMessage("You now " + (args.Player.DisplayLogs ? "receive" : "stopped receiving") + " logs");
         }
 
         #endregion Player Management Commands
@@ -655,20 +676,38 @@ namespace TShockAPI
 
         private static void Home(CommandArgs args)
         {
-            TShock.Teleport(args.Player.Index, args.TPlayer.SpawnX * 16 + 8 - args.TPlayer.width / 2,
-                            args.TPlayer.SpawnY * 16 - args.TPlayer.height);
+            if (!args.Player.RealPlayer)
+            {
+                args.Player.SendMessage("You cannot use teleport commands!");
+                return;
+            }
+
+            args.Player.Spawn();
             args.Player.SendMessage("Teleported to your spawnpoint.");
         }
 
         private static void Spawn(CommandArgs args)
         {
-            TShock.Teleport(args.Player.Index, Main.spawnTileX * 16 + 8 - args.TPlayer.width / 2,
-                            Main.spawnTileY * 16 - args.TPlayer.height);
-            args.Player.SendMessage("Teleported to the map's spawnpoint.");
+            if (!args.Player.RealPlayer)
+            {
+                args.Player.SendMessage("You cannot use teleport commands!");
+                return;
+            }
+
+            if (args.Player.Teleport(Main.spawnTileX, Main.spawnTileY))
+                args.Player.SendMessage("Teleported to the map's spawnpoint.");
+            else
+                args.Player.SendMessage("Teleport unavailable - Spawn point set to Bed. To unset, destroy Bed and suicide at least once.", Color.Red);
         }
 
         private static void TP(CommandArgs args)
         {
+            if (!args.Player.RealPlayer)
+            {
+                args.Player.SendMessage("You cannot use teleport commands!");
+                return;
+            }
+
             if (args.Parameters.Count < 1)
             {
                 args.Player.SendMessage("Invalid syntax! Proper syntax: /tp <player> ", Color.Red);
@@ -684,13 +723,21 @@ namespace TShockAPI
             else
             {
                 var plr = players[0];
-                TShock.Teleport(args.Player.Index, plr.X, plr.Y);
-                args.Player.SendMessage(string.Format("Teleported to {0}", plr.Name));
+                if (args.Player.Teleport(plr.TileX, plr.TileY + 3))
+                    args.Player.SendMessage(string.Format("Teleported to {0}", plr.Name));
+                else
+                    args.Player.SendMessage("Teleport unavailable - Spawn point set to Bed. To unset, destroy Bed and suicide at least once.", Color.Red);
             }
         }
 
         private static void TPHere(CommandArgs args)
         {
+            if (!args.Player.RealPlayer)
+            {
+                args.Player.SendMessage("You cannot use teleport commands!");
+                return;
+            }
+
             if (args.Parameters.Count < 1)
             {
                 args.Player.SendMessage("Invalid syntax! Proper syntax: /tphere <player> ", Color.Red);
@@ -710,10 +757,112 @@ namespace TShockAPI
             else
             {
                 var plr = players[0];
-                TShock.Teleport(plr.Index, args.Player.X, args.Player.Y);
-                plr.SendMessage(string.Format("You were teleported to {0}.", plr.Name));
-                args.Player.SendMessage(string.Format("You brought {0} here.", plr.Name));
+                if (plr.Teleport(args.Player.TileX, args.Player.TileY + 3))
+                {
+                    plr.SendMessage(string.Format("You were teleported to {0}.", plr.Name));
+                    args.Player.SendMessage(string.Format("You brought {0} here.", plr.Name));
+                }
+                else
+                    args.Player.SendMessage("Teleport unavailable - Target player has spawn point set to Bed.", Color.Red);
+
             }
+        }
+
+        private static void SetWarp(CommandArgs args)
+        {
+            if (args.Parameters.Count > 0)
+            {
+                string warpName = String.Join(" ", args.Parameters);
+                if (warpName.Equals("list"))
+                {
+                    args.Player.SendMessage("Name reserved, use a different name", Color.Red);
+                }
+                else if (WarpsManager.AddWarp(args.Player.TileX, args.Player.TileY, warpName, Main.worldName))
+                {
+                    args.Player.SendMessage("Set warp " + warpName, Color.Yellow);
+                    WarpsManager.WriteSettings();
+                }
+                else
+                {
+                    args.Player.SendMessage("Warp " + warpName + " already exists", Color.Red);
+                }
+            }
+            else
+                args.Player.SendMessage("Invalid syntax! Proper syntax: /setwarp [name]", Color.Red);
+        }
+
+        private static void DeleteWarp(CommandArgs args)
+        {
+            if (args.Parameters.Count > 0)
+            {
+                string warpName = String.Join(" ", args.Parameters);
+                if (WarpsManager.DeleteWarp(warpName))
+                    args.Player.SendMessage("Deleted warp " + warpName, Color.Yellow);
+                else
+                    args.Player.SendMessage("Could not find specified warp", Color.Red);
+            }
+            else
+                args.Player.SendMessage("Invalid syntax! Proper syntax: /delwarp [name]", Color.Red);
+        }
+
+        private static void UseWarp(CommandArgs args)
+        {
+            if (args.Parameters.Count > 0)
+            {
+                if (args.Parameters[0].Equals("list"))
+                {
+                    args.Player.SendMessage("Current Warps:", Color.Green); 
+                    int page = 1;
+                    if (args.Parameters.Count > 1)
+                        int.TryParse(args.Parameters[1], out page);
+                    var sb = new StringBuilder();
+                    if (WarpsManager.Warps.Count > (15 * (page - 1)))
+                    {
+                        for (int j = (15 * (page - 1)); j < (15 * page); j++)
+                        {
+                            if (WarpsManager.Warps[j].WorldWarpName == Main.worldName)
+                            {
+                                if (sb.Length != 0)
+                                    sb.Append(", ");
+                                sb.Append("/").Append(WarpsManager.Warps[j].WarpName);
+                                if (j == WarpsManager.Warps.Count - 1)
+                                {
+                                    args.Player.SendMessage(sb.ToString(), Color.Yellow);
+                                    break;
+                                }
+                                if ((j + 1) % 5 == 0)
+                                {
+                                    args.Player.SendMessage(sb.ToString(), Color.Yellow);
+                                    sb.Clear();
+                                }
+                            }
+                        }
+                    }
+                    if (WarpsManager.Warps.Count > (15 * page))
+                    {
+                        args.Player.SendMessage(string.Format("Type /warp list {0} for more warps.", (page + 1)), Color.Yellow);
+                    }
+                }
+                else
+                {
+                    string warpName = String.Join(" ", args.Parameters);
+                    var warp = WarpsManager.FindWarp(warpName);
+                    if (warp != Vector2.Zero)
+                    {
+                        if (args.Player.Teleport((int)warp.X, (int)warp.Y + 3))
+                            args.Player.SendMessage("Warped to " + warpName, Color.Yellow);
+                        else
+                            args.Player.SendMessage("Warp unavailable - Spawn point set to Bed. To unset, destroy Bed and suicide at least once.", Color.Red);
+
+                    }
+                    else
+                    {
+                        args.Player.SendMessage("Specified warp not found", Color.Red);
+                    }
+                }
+            }
+            else
+                args.Player.SendMessage("Invalid syntax! Proper syntax: /warp [name] or warp list", Color.Red);
         }
 
         #endregion Teleport Commands
@@ -797,6 +946,10 @@ namespace TShockAPI
             Tools.Broadcast(string.Format("{0} changed the spawn rate to: {1}", args.Player.Name, amount));
         }
 
+        #endregion Server Config Commands
+
+        #region Time/PvpFun Commands
+
         private static void Time(CommandArgs args)
         {
             if (args.Parameters.Count != 1)
@@ -833,7 +986,44 @@ namespace TShockAPI
             }
         }
 
-        #endregion Server Config Commands
+        private static void Slap(CommandArgs args)
+        {
+            if (args.Parameters.Count < 1 || args.Parameters.Count > 2)
+            {
+                args.Player.SendMessage("Invalid syntax! Proper syntax: /slap <player> [dmg]", Color.Red);
+                return;
+            }
+            if (args.Parameters[0].Length == 0)
+            {
+                args.Player.SendMessage("Missing player name", Color.Red);
+                return;
+            }
+
+            string plStr = args.Parameters[0];
+            var players = Tools.FindPlayer(plStr);
+            if (players.Count == 0)
+            {
+                args.Player.SendMessage("Invalid player!", Color.Red);
+            }
+            else if (players.Count > 1)
+            {
+                args.Player.SendMessage("More than one player matched!", Color.Red);
+            }
+            else
+            {
+                var plr = players[0];
+                int damage = 5;
+                if (args.Parameters.Count == 2)
+                {
+                    int.TryParse(args.Parameters[1], out damage);
+                }
+                plr.DamagePlayer(damage);
+                Tools.Broadcast(string.Format("{0} slapped {1} for {2} damage.",
+                                args.Player.Name, plr.Name, damage));
+            }
+        }
+
+        #endregion Time/PvpFun Commands
 
         #region World Protection Commands
 
@@ -849,20 +1039,179 @@ namespace TShockAPI
             Tools.Broadcast(string.Format("Spawn is now {0}.", (ConfigurationManager.SpawnProtect ? "protected" : "open")));
         }
 
+        private static void Region(CommandArgs args)
+        {
+            string cmd = "help";
+            if (args.Parameters.Count > 0)
+            {
+                cmd = args.Parameters[0].ToLower();
+            }
+            switch (cmd)
+            {
+                case "set":
+                    {
+                        if (args.Parameters.Count == 2)
+                        {
+                            if (args.Parameters[1] == "1")
+                            {
+                                args.Player.TempArea.X = args.Player.TileX;
+                                args.Player.TempArea.Y = args.Player.TileY;
+                                args.Player.SendMessage("Set Temp Point 1", Color.Yellow);
+                            }
+                            else if (args.Parameters[1] == "2")
+                            {
+                                if (args.Player.TempArea.X != 0)
+                                {
+                                    if (args.Player.TileX > args.Player.TempArea.X && args.Player.TileY > args.Player.TempArea.Y)
+                                    {
+                                        args.Player.TempArea.Width = args.Player.TileX - args.Player.TempArea.X;
+                                        args.Player.TempArea.Height = (args.Player.TileY + 3) - args.Player.TempArea.Y;
+                                        args.Player.SendMessage("Set Temp Point 2", Color.Yellow);
+                                    }
+                                    else
+                                    {
+                                        args.Player.SendMessage("Point 2 must be below and right of Point 1", Color.Yellow);
+                                        args.Player.SendMessage("Use /region clear to start again", Color.Yellow);
+                                    }
+                                }
+                                else
+                                {
+                                    args.Player.SendMessage("You have not set Point 1 yet", Color.Red);
+                                }
+                            }
+                            else
+                                args.Player.SendMessage("Invalid syntax! Proper syntax: /region set [1/2]", Color.Red);
+                        }
+                        else
+                            args.Player.SendMessage("Invalid syntax! Proper syntax: /region set [1/2]", Color.Red);
+                        break;
+                    }
+                case "define":
+                    {
+                        if (args.Parameters.Count > 1)
+                        {
+                            if (!args.Player.TempArea.IsEmpty)
+                            {
+                                string regionName = String.Join(" ", args.Parameters.GetRange(1, args.Parameters.Count - 1));
+                                if (RegionManager.AddRegion(args.Player.TempArea.X, args.Player.TempArea.Y, 
+                                                            args.Player.TempArea.Width, args.Player.TempArea.Height, 
+                                                            regionName, Main.worldName))
+                                {
+                                    args.Player.TempArea = Rectangle.Empty;
+                                    args.Player.SendMessage("Set region " + regionName, Color.Yellow);
+                                }
+                                else
+                                {
+                                    args.Player.SendMessage("Region " + regionName + " already exists", Color.Red);
+                                }
+                            }
+                            else
+                                args.Player.SendMessage("Points not set up yet", Color.Red);
+                        }
+                        else
+                            args.Player.SendMessage("Invalid syntax! Proper syntax: /region define [name]", Color.Red);
+                        break;
+                    }
+                case "protect":
+                    {
+                        if (args.Parameters.Count == 3)
+                        {
+                            string regionName = args.Parameters[1];
+                            if (args.Parameters[2].ToLower() == "true")
+                            {
+                                if (RegionManager.SetRegionState(regionName, true))
+                                    args.Player.SendMessage("Protected region " + regionName, Color.Yellow);
+                                else
+                                    args.Player.SendMessage("Could not find specified region", Color.Red);
+                            }
+                            else if (args.Parameters[2].ToLower() == "false")
+                            {
+                                if (RegionManager.SetRegionState(regionName, false))
+                                    args.Player.SendMessage("Unprotected region " + regionName, Color.Yellow);
+                                else
+                                    args.Player.SendMessage("Could not find specified region", Color.Red);
+                            }
+                            else
+                                args.Player.SendMessage("Invalid syntax! Proper syntax: /region protected [name] [true/false]", Color.Red);
+                        }
+                        else
+                            args.Player.SendMessage("Invalid syntax! Proper syntax: /region protected [name] [true/false]", Color.Red);
+                        break;
+                    }
+                case "delete":
+                    {
+                        if (args.Parameters.Count > 1)
+                        {
+                            string regionName = String.Join(" ", args.Parameters.GetRange(1, args.Parameters.Count - 1));
+                            if (RegionManager.DeleteRegion(regionName))
+                                args.Player.SendMessage("Deleted region " + regionName, Color.Yellow);
+                            else
+                                args.Player.SendMessage("Could not find specified region", Color.Red);
+                        }
+                        else
+                            args.Player.SendMessage("Invalid syntax! Proper syntax: /region delete [name]", Color.Red);
+                        break;
+                    }
+                case "clear":
+                    {
+                        args.Player.TempArea = Rectangle.Empty;
+                        args.Player.SendMessage("Cleared temp area", Color.Yellow);
+                        break;
+                    }
+                case "allow":
+                    {
+                        if (args.Parameters.Count > 2)
+                        {
+                            string playerName = args.Parameters[1];
+                            string regionName = "";
+                            string playerIP = null;
+
+                            for (int i = 2; i < args.Parameters.Count; i++)
+                            {
+                                if (regionName == "")
+                                {
+                                    regionName = args.Parameters[2];
+                                }
+                                else
+                                {
+                                    regionName = regionName + " " + args.Parameters[i];
+                                }
+                            }
+                            if ((playerIP = Tools.GetPlayerIP(playerName)) != null)
+                            {
+                                if (RegionManager.AddNewUser(regionName, playerIP))
+                                {
+                                    args.Player.SendMessage("Added user " + playerName + " to " + regionName, Color.Yellow);
+                                    RegionManager.WriteSettings();
+                                }
+                                else
+                                    args.Player.SendMessage("Region " + regionName + " not found", Color.Red);
+                            }
+                            else
+                            {
+                                args.Player.SendMessage("Player " + playerName + " not found", Color.Red);
+                            }
+                        }
+                        else
+                            args.Player.SendMessage("Invalid syntax! Proper syntax: /region allow [name] [region]", Color.Red);
+                        break;
+                    }
+                case "help":
+                default:
+                    {
+                        args.Player.SendMessage("Avialable region commands:", Color.Green);
+                        args.Player.SendMessage("/region set [1/2] /region define [name] /region protect [name] [true/false]", Color.Yellow);
+                        args.Player.SendMessage("/region delete [name] /region clear (temporary region)", Color.Yellow);
+                        args.Player.SendMessage("/region allow [name] [regionname]", Color.Yellow);
+                        break;
+                    }
+            }
+
+        }
+
         #endregion World Protection Commands
 
         #region General Commands
-
-        public static void Whitelist(CommandArgs args)
-        {
-            if (args.Parameters.Count == 1)
-            {
-                TextWriter tw = new StreamWriter(FileTools.WhitelistPath, true);
-                tw.WriteLine(args.Parameters[0]);
-                tw.Close();
-                args.Player.SendMessage("Added " + args.Parameters[0] + " to the whitelist.");
-            }
-        }
 
         private static void Help(CommandArgs args)
         {
@@ -967,43 +1316,6 @@ namespace TShockAPI
         #endregion General Commands
 
         #region Cheat Commands
-
-        private static void Slap(CommandArgs args)
-        {
-            if (args.Parameters.Count < 1 || args.Parameters.Count > 2)
-            {
-                args.Player.SendMessage("Invalid syntax! Proper syntax: /slap <player> [dmg]", Color.Red);
-                return;
-            }
-            if (args.Parameters[0].Length == 0)
-            {
-                args.Player.SendMessage("Missing player name", Color.Red);
-                return;
-            }
-
-            string plStr = args.Parameters[0];
-            var players = Tools.FindPlayer(plStr);
-            if (players.Count == 0)
-            {
-                args.Player.SendMessage("Invalid player!", Color.Red);
-            }
-            else if (players.Count > 1)
-            {
-                args.Player.SendMessage("More than one player matched!", Color.Red);
-            }
-            else
-            {
-                var plr = players[0];
-                int damage = 5;
-                if (args.Parameters.Count == 2)
-                {
-                    int.TryParse(args.Parameters[1], out damage);
-                }
-                plr.DamagePlayer(damage);
-                Tools.Broadcast(string.Format("{0} slapped {1} for {2} damage.",
-                                args.Player.Name, plr.Name, damage));
-            }
-        }
 
         private static void Kill(CommandArgs args)
         {
@@ -1119,6 +1431,7 @@ namespace TShockAPI
             }
 
             var items = Tools.GetItemByIdOrName(args.Parameters[0]);
+
             if (items.Count == 0)
             {
                 args.Player.SendMessage("Invalid item type!", Color.Red);

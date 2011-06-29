@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -26,14 +27,15 @@ using Microsoft.Xna.Framework.Content;
 using Terraria;
 using TerrariaAPI;
 using TerrariaAPI.Hooks;
+using System.Text;
 
 namespace TShockAPI
 {
-    [APIVersion(1, 4)]
+    [APIVersion(1, 5)]
     public class TShock : TerrariaPlugin
     {
-        public static readonly Version VersionNum = Assembly.GetExecutingAssembly().GetName().Version; 
-        public static readonly string VersionCodename = "Forgot to increase the version.";
+        public static readonly Version VersionNum = Assembly.GetExecutingAssembly().GetName().Version;
+        public static readonly string VersionCodename = "Lol, packet changes.";
 
         public static readonly string SavePath = "tshock";
 
@@ -100,8 +102,17 @@ namespace TShockAPI
             Commands.InitCommands();
             Log.Info("Commands initialized");
 
+            RegionManager.ReadAllSettings();
+            WarpsManager.ReadAllSettings();
+            ItemManager.LoadBans();
+
+
+            Main.autoSave = ConfigurationManager.AutoSave;
             Backups.KeepFor = ConfigurationManager.BackupKeepFor;
             Backups.Interval = ConfigurationManager.BackupInterval;
+
+            Log.ConsoleInfo("AutoSave " + (ConfigurationManager.AutoSave ? "Enabled" : "Disabled"));
+            Log.ConsoleInfo("Backups " + (Backups.Interval > 0 ? "Enabled" : "Disabled"));
 
             HandleCommandLine(Environment.GetCommandLineArgs());
         }
@@ -188,23 +199,39 @@ namespace TShockAPI
             {
                 if (player != null && player.Active)
                 {
-                    if (player.TileThreshold >= 20)
+                    if (player.TilesDestroyed != null)
                     {
-                        if (Tools.HandleTntUser(player, "Kill tile abuse detected."))
+                        if (player.TileThreshold >= ConfigurationManager.TileThreshold)
                         {
-                            TSPlayer.Server.RevertKillTile(player.TilesDestroyed);
+                            if (Tools.HandleTntUser(player, "Kill tile abuse detected."))
+                            {
+                                TSPlayer.Server.RevertKillTile(player.TilesDestroyed);
+                            }
+                            else if (player.TileThreshold > 0)
+                            {
+                                player.TileThreshold = 0;
+                                player.TilesDestroyed.Clear();
+                            }
+
                         }
                         else if (player.TileThreshold > 0)
                         {
                             player.TileThreshold = 0;
                             player.TilesDestroyed.Clear();
                         }
-
                     }
-                    else if (player.TileThreshold > 0)
+
+                    if (!player.Group.HasPermission("usebanneditem"))
                     {
-                        player.TileThreshold = 0;
-                        player.TilesDestroyed.Clear();
+                        var inv = Main.player[player.Index].inventory;
+                        for (int i = 0; i < inv.Length; i++)
+                        {
+                            if (inv[i] != null && ItemManager.ItemIsBanned(inv[i].name))
+                            {
+                                player.Disconnect("Using banned item: " + inv[i].name + ", remove it and rejoin");
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -239,7 +266,9 @@ namespace TShockAPI
             }
 
             Players[ply] = player;
-            Netplay.serverSock[ply].spamCheck = ConfigurationManager.SpamChecks;
+            Players[ply].InitSpawn = false;
+
+            Netplay.spamCheck = ConfigurationManager.SpamChecks;
         }
 
         private void OnLeave(int ply)
@@ -251,12 +280,18 @@ namespace TShockAPI
             if (tsplr != null && tsplr.ReceivedInfo)
                 Log.Info(string.Format("{0} left.", tsplr.Name));
 
+            if (ConfigurationManager.RememberLeavePos)
+            {
+                RemeberedPosManager.RemeberedPosistions.Add(new RemeberedPos(Players[ply].IP, new Vector2(Players[ply].X / 16, (Players[ply].Y / 16) + 3)));
+                RemeberedPosManager.WriteSettings();
+            }
+
             Players[ply] = null;
         }
 
         private void OnChat(messageBuffer msg, int ply, string text, HandledEventArgs e)
         {
-            if (Main.netMode != 2)
+            if (Main.netMode != 2 || e.Handled)
                 return;
 
             if (msg.whoAmI != ply)
@@ -293,6 +328,9 @@ namespace TShockAPI
         /// <param name="e"></param>
         private void ServerHooks_OnCommand(string text, HandledEventArgs e)
         {
+            if (e.Handled)
+                return;
+
             // Damn you ThreadStatic and Redigit
             if (Main.rand == null)
             {
@@ -325,6 +363,12 @@ namespace TShockAPI
             {
                 Log.Info(string.Format("Server said: {0}", text.Remove(0, 4)));
             }
+            else if (text == "autosave")
+            {
+                Main.autoSave = ConfigurationManager.AutoSave = !ConfigurationManager.AutoSave;
+                Log.ConsoleInfo("AutoSave " + (ConfigurationManager.AutoSave ? "Enabled" : "Disabled"));
+                e.Handled = true;
+            }
             else if (text.StartsWith("/"))
             {
                 if (Commands.HandleCommand(TSPlayer.Server, text))
@@ -335,6 +379,9 @@ namespace TShockAPI
 
         private void GetData(GetDataEventArgs e)
         {
+            if (Main.netMode != 2 || e.Handled)
+                return;
+
             PacketTypes type = e.MsgID;
             TSPlayer player = Players[e.Msg.whoAmI];
 
@@ -348,7 +395,7 @@ namespace TShockAPI
                 Debug.WriteLine("{0:X} ({2}): {3} ({1:XX})", player.Index, (byte)type, player.TPlayer.dead ? "dead " : "alive", type.ToString());
 
             // Stop accepting updates from player as this player is going to be kicked/banned during OnUpdate (different thread so can produce race conditions)
-            if ((ConfigurationManager.BanTnt || ConfigurationManager.KickTnt) && player.TileThreshold >= 20 && !player.Group.HasPermission("ignoregriefdetection"))
+            if ((ConfigurationManager.BanTnt || ConfigurationManager.KickTnt) && player.TileThreshold >= ConfigurationManager.TileThreshold && !player.Group.HasPermission("ignoregriefdetection"))
             {
                 Log.Debug("Rejecting " + type + " from " + player.Name + " as this player is about to be kicked");
                 e.Handled = true;
@@ -372,7 +419,7 @@ namespace TShockAPI
 
         private void OnGreetPlayer(int who, HandledEventArgs e)
         {
-            if (Main.netMode != 2)
+            if (Main.netMode != 2 || e.Handled)
                 return;
 
             TSPlayer player = Players[who];
@@ -390,6 +437,19 @@ namespace TShockAPI
             if (Players[who].Group.HasPermission("causeevents") && ConfigurationManager.InfiniteInvasion)
             {
                 StartInvasion();
+            }
+            if (ConfigurationManager.RememberLeavePos)
+            {
+                foreach (RemeberedPos playerIP in RemeberedPosManager.RemeberedPosistions)
+                {
+                    if (playerIP.IP == player.IP)
+                    {
+                        player.Teleport((int)playerIP.Pos.X, (int)playerIP.Pos.Y);
+                        RemeberedPosManager.RemeberedPosistions.Remove(playerIP);
+                        RemeberedPosManager.WriteSettings();
+                        break;
+                    }
+                }
             }
             e.Handled = true;
         }
@@ -409,27 +469,6 @@ namespace TShockAPI
         /*
          * Useful stuff:
          * */
-
-        public static void Teleport(int ply, int x, int y)
-        {
-            int oldSpawnX = Main.spawnTileX;
-            int oldSpawnY = Main.spawnTileY;
-            Main.spawnTileX = x;
-            Main.spawnTileY = y;
-            //Send only that player the new spawn point data
-            NetMessage.SendData(7, ply, -1, "", 0, 0f, 0f, 0f);
-            //Force them to respawn
-            NetMessage.SendData(12, ply, -1, "", ply, 0.0f, 0.0f, 0.0f);
-            //Reset to old spawnpoint and send spawn data back to player
-            Main.spawnTileX = (int)oldSpawnX;
-            Main.spawnTileY = (int)oldSpawnY;
-            NetMessage.SendData(7, ply, -1, "", 0, 0f, 0f, 0f);
-        }
-
-        public static void Teleport(int ply, float x, float y)
-        {
-            Teleport(ply, (int)x, (int)y);
-        }
 
         public static void StartInvasion()
         {

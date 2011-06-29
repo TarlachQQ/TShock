@@ -99,6 +99,16 @@ namespace TShockAPI
         }
 
         /// <summary>
+        /// Writes an informative string to the log file. Also outputs to the console.
+        /// </summary>
+        /// <param name="message">The message to be written.</param>
+        public static void ConsoleInfo(String message)
+        {
+            Console.WriteLine(message);
+            Write(message, LogLevel.Info);
+        }
+
+        /// <summary>
         /// Writes a debug string to the log file.
         /// </summary>
         /// <param name="message">The message to be written.</param>
@@ -118,6 +128,14 @@ namespace TShockAPI
             }
 
             string caller = "TShock";
+
+            StackFrame frame = new StackTrace().GetFrame(2);
+            if (frame != null)
+            {
+                var meth = frame.GetMethod();
+                if (meth != null)
+                    caller = meth.DeclaringType.Name;
+            }
 
             _logWriter.WriteLine(string.Format("{0} - {1}: {2}: {3}",
                                  DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
