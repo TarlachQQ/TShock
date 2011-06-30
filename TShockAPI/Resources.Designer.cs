@@ -61,6 +61,17 @@ namespace TShockAPI {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {
+        ///	&quot;startupString&quot; : &quot;TShock Version {0} ({1}) now running.&quot;
+        ///}.
+        /// </summary>
+        internal static string english {
+            get {
+                return ResourceManager.GetString("english", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to #Format
         ///#name parent permisson1 permission2 permissionN
         ///#if there is no parent, put null instead
@@ -82,8 +93,8 @@ namespace TShockAPI {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to #see https://github.com/TShock/TShock/wiki/Item-List for a list of groups
-        ///#List each banned item below this with spaces.
+        ///   Looks up a localized string similar to #see https://github.com/TShock/TShock/wiki/Item-List for a list of item ids
+        ///#List each banned item ID below this, with each on a new line.
         /// </summary>
         internal static string itembans {
             get {
