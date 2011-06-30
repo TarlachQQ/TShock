@@ -1,0 +1,3 @@
+{
+	"startupString" : "TShock Version {0} ({1}) now running."
+}

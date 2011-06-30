@@ -57,6 +57,7 @@ namespace TShockAPI
         public static string AdminChatPrefix = "(Admin) ";
         public static bool RememberLeavePos = false;
         public static int TileThreshold = 20;
+        public static string LanguageFile = "english.txt";
 
         /// <summary>
         /// Don't allow pvp changing for x seconds.
@@ -120,6 +121,7 @@ namespace TShockAPI
             KickOnHardcoreDeath = cfg.KickOnHardcoreOnlyDeath;
             BanOnHardcoreDeath = cfg.BanOnHardcoreOnlyDeath;
             AutoSave = cfg.AutoSave;
+            LanguageFile = cfg.LanguageFile;
         }
 
         public static void WriteJsonConfiguration()
@@ -158,6 +160,7 @@ namespace TShockAPI
             cfg.BanOnHardcoreOnlyDeath = BanOnHardcoreDeath;
             cfg.KickOnHardcoreOnlyDeath = KickOnHardcoreDeath;
             cfg.AutoSave = AutoSave;
+            cfg.LanguageFile = LanguageFile;
             string json = JsonConvert.SerializeObject(cfg, Formatting.Indented);
             TextWriter tr = new StreamWriter(FileTools.ConfigPath);
             tr.Write(json);

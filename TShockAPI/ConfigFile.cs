@@ -59,5 +59,7 @@ namespace TShockAPI
         public bool BanOnHardcoreOnlyDeath = false;
 
         public bool AutoSave = true;
+
+        public string LanguageFile = "english.txt";
     }
 }

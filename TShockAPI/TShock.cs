@@ -83,7 +83,7 @@ namespace TShockAPI
             Log.Initialize(Path.Combine(SavePath, "log.txt"), LogLevel.All & ~LogLevel.Debug, false);
 #endif
 
-            Log.ConsoleInfo(string.Format("TShock Version {0} ({1}) now running.", Version, VersionCodename));
+            Log.ConsoleInfo(string.Format(LanguageManager.loadedStrings.startupString, Version, VersionCodename));
             Log.Info("Starting...");
 
             GameHooks.PostInitialize += OnPostInit;
