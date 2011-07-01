@@ -1,3 +1,4 @@
 {
-	"startupString" : "TShock Version {0} ({1}) now running."
+	"startupString" : "TShock Version {0} ({1}) now running.",
+	"starting" : "Starting..."
 }
