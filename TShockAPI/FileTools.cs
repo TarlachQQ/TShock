@@ -107,6 +107,8 @@ namespace TShockAPI
                 Log.Error(ex.ToString());
             }
 
+            LanguageManager.LoadLanguageStrings();
+
             Netplay.serverPort = ConfigurationManager.ServerPort;
         }
 
