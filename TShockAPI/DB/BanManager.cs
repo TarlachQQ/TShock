@@ -103,6 +103,7 @@ namespace TShockAPI.DB
             {
                 Bans.InsertOnSubmit(ban);
                 database.SubmitChanges();
+                return true;
             }
             catch (Exception ex)
             {
