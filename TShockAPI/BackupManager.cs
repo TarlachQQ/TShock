@@ -18,8 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 using System;
+using System.Data;
+using System.Data.Linq.Mapping;
 using System.IO;
 using System.Threading;
+using DbLinq.Data.Linq;
 using Terraria;
 
 namespace TShockAPI
@@ -89,7 +92,7 @@ namespace TShockAPI
 
         void DeleteOld(object o)
         {
-             if (KeepFor <= 0)
+            if (KeepFor <= 0)
                 return;
             foreach (var fi in new DirectoryInfo(BackupPath).GetFiles("*.bak"))
             {

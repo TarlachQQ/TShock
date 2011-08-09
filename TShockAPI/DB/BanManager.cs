@@ -18,25 +18,31 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
 using System.Data;
+using System.Data.Linq.Mapping;
 using System.IO;
+using System.Linq;
+using DbLinq.Data.Linq;
+using DbLinq.Sqlite;
 using MySql.Data.MySqlClient;
 
 namespace TShockAPI.DB
 {
     public class BanManager
     {
-        private IDbConnection database;
+        private DataContext database;
+        public Table<Ban> Bans { get; protected set; }
 
-        public BanManager(IDbConnection db)
+        public BanManager(DataContext db)
         {
             database = db;
+            Bans = db.GetTable<Ban>();
 
             var table = new SqlTable("Bans",
                 new SqlColumn("IP", MySqlDbType.String, 16) { Primary = true },
                 new SqlColumn("Name", MySqlDbType.Text),
                 new SqlColumn("Reason", MySqlDbType.Text)
             );
-            var creator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite ? (IQueryBuilder)new SqliteQueryCreator() : new MysqlQueryCreator());
+            var creator = new SqlTableCreator(db.Connection, db.Connection.GetSqlType() == SqlType.Sqlite ? (IQueryBuilder)new SqliteQueryCreator() : new MysqlQueryCreator());
             creator.EnsureExists(table);
 
             String file = Path.Combine(TShock.SavePath, "bans.txt");
@@ -48,12 +54,7 @@ namespace TShockAPI.DB
                     while ((line = sr.ReadLine()) != null)
                     {
                         String[] info = line.Split('|');
-                        string query;
-                        if (TShock.Config.StorageType.ToLower() == "sqlite")
-                            query = "INSERT OR IGNORE INTO Bans (IP, Name, Reason) VALUES (@0, @1, @2);";
-                        else
-                            query = "INSERT IGNORE INTO Bans SET IP=@0, Name=@1, Reason=@2;";
-                        db.Query(query, info[0].Trim(), info[1].Trim(), info[2].Trim());
+                        AddBan(info[0].Trim(), info[1].Trim(), info[2].Trim());
                     }
                 }
                 String path = Path.Combine(TShock.SavePath, "old_configs");
@@ -70,11 +71,7 @@ namespace TShockAPI.DB
         {
             try
             {
-                using (var reader = database.QueryReader("SELECT * FROM Bans WHERE IP=@0", ip))
-                {
-                    if (reader.Read())
-                        return new Ban(reader.Get<string>("IP"), reader.Get<string>("Name"), reader.Get<string>("Reason"));
-                }
+                return (from b in Bans where b.IP == ip select b).FirstOrDefault();
             }
             catch (Exception ex)
             {
@@ -83,7 +80,7 @@ namespace TShockAPI.DB
             return null;
         }
 
-        public Ban GetBanByName(string name, bool casesensitive = true)
+        public Ban GetBanByName(string name, StringComparison comparison = StringComparison.InvariantCulture)
         {
             if (!TShock.Config.EnableBanOnUsernames)
             {
@@ -91,15 +88,7 @@ namespace TShockAPI.DB
             }
             try
             {
-                var namecol = casesensitive ? "Name" : "UPPER(Name)";
-                if (!casesensitive)
-                    name = name.ToUpper();
-                using (var reader = database.QueryReader("SELECT * FROM Bans WHERE " + namecol + "=@0", name))
-                {
-                    if (reader.Read())
-                        return new Ban(reader.Get<string>("IP"), reader.Get<string>("Name"), reader.Get<string>("Reason"));
-
-                }
+                return (from b in Bans where name.Equals(b.Name, comparison) select b).FirstOrDefault();
             }
             catch (Exception ex)
             {
@@ -108,11 +97,12 @@ namespace TShockAPI.DB
             return null;
         }
 
-        public bool AddBan(string ip, string name = "", string reason = "")
+        public bool AddBan(Ban ban)
         {
             try
             {
-                return database.Query("INSERT INTO Bans (IP, Name, Reason) VALUES (@0, @1, @2);", ip, name, reason) != 0;
+                Bans.InsertOnSubmit(ban);
+                database.SubmitChanges();
             }
             catch (Exception ex)
             {
@@ -121,11 +111,22 @@ namespace TShockAPI.DB
             return false;
         }
 
+        public bool AddBan(string ip, string name = "", string reason = "")
+        {
+            return AddBan(new Ban(ip, name, reason));
+        }
+
         public bool RemoveBan(string ip)
         {
             try
             {
-                return database.Query("DELETE FROM Bans WHERE IP=@0", ip) != 0;
+                var ban = GetBanByIp(ip);
+                if (ban != null)
+                {
+                    Bans.DeleteOnSubmit(ban);
+                    database.SubmitChanges();
+                    return true;
+                }
             }
             catch (Exception ex)
             {
@@ -137,7 +138,7 @@ namespace TShockAPI.DB
         {
             try
             {
-                return database.Query("DELETE FROM Bans") != 0;
+                return database.Connection.Query("DELETE FROM Bans") != 0;
             }
             catch (Exception ex)
             {
@@ -147,12 +148,14 @@ namespace TShockAPI.DB
         }
     }
 
+    [Table(Name = "Bans")]
     public class Ban
     {
+        [Column(Name = "IP", DbType = "TEXT", IsPrimaryKey = true, IsDbGenerated = false, AutoSync = AutoSync.Never, CanBeNull = false)]
         public string IP { get; set; }
-
+        [Column(Name = "Name", DbType = "TEXT", IsDbGenerated = false, AutoSync = AutoSync.Never)]
         public string Name { get; set; }
-
+        [Column(Name = "Reason", DbType = "TEXT", IsDbGenerated = false, AutoSync = AutoSync.Never)]
         public string Reason { get; set; }
 
         public Ban(string ip, string name, string reason)

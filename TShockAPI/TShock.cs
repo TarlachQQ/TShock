@@ -26,15 +26,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
-using System.Linq;
 using System.Threading;
 using Community.CsharpSqlite.SQLiteClient;
+using DbLinq.Data.Linq;
+using DbLinq.MySql;
+using DbLinq.Sqlite;
 using Microsoft.Xna.Framework;
 using MySql.Data.MySqlClient;
 using Terraria;
@@ -62,7 +63,7 @@ namespace TShockAPI
         public static ItemManager Itembans;
         public static RemeberedPosManager RememberedPos;
         public static ConfigFile Config { get; set; }
-        public static IDbConnection DB;
+        public static DataContext DB;
         public static bool OverridePort;
         PacketBufferer bufferer;
 
@@ -126,22 +127,20 @@ namespace TShockAPI
                 if (Config.StorageType.ToLower() == "sqlite")
                 {
                     string sql = Path.Combine(SavePath, "tshock.sqlite");
-                    DB = new SqliteConnection(string.Format("uri=file://{0},Version=3", sql));
+                    DB = new SqliteDataContext(new SqliteConnection(string.Format("uri=file://{0},Version=3", sql)));
                 }
                 else if (Config.StorageType.ToLower() == "mysql")
                 {
                     try
                     {
                         var hostport = Config.MySqlHost.Split(':');
-                        DB = new MySqlConnection();
-                        DB.ConnectionString =
-                            String.Format("Server='{0}'; Port='{1}'; Database='{2}'; Uid='{3}'; Pwd='{4}';",
+                        var conn = String.Format("Server='{0}'; Port='{1}'; Database='{2}'; Uid='{3}'; Pwd='{4}';",
                                           hostport[0],
                                           hostport.Length > 1 ? hostport[1] : "3306",
                                           Config.MySqlDbName,
                                           Config.MySqlUsername,
-                                          Config.MySqlPassword
-                                );
+                                          Config.MySqlPassword);
+                        DB = new MySqlDataContext(new MySqlConnection(conn));
                     }
                     catch (MySqlException ex)
                     {
@@ -158,13 +157,13 @@ namespace TShockAPI
                 Backups.KeepFor = Config.BackupKeepFor;
                 Backups.Interval = Config.BackupInterval;
                 Bans = new BanManager(DB);
-                Warps = new WarpManager(DB);
-                Users = new UserManager(DB);
-                Groups = new GroupManager(DB);
+                Warps = new WarpManager(DB.Connection);
+                Users = new UserManager(DB.Connection);
+                Groups = new GroupManager(DB.Connection);
                 Groups.LoadPermisions();
-                Regions = new RegionManager(DB);
-                Itembans = new ItemManager(DB);
-                RememberedPos = new RemeberedPosManager(DB);
+                Regions = new RegionManager(DB.Connection);
+                Itembans = new ItemManager(DB.Connection);
+                RememberedPos = new RemeberedPosManager(DB.Connection);
 
                 Log.ConsoleInfo(string.Format("TShock Version {0} ({1}) now running.", Version, VersionCodename));
 
