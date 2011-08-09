@@ -325,7 +325,8 @@ namespace TShockAPI
                 {
                     args.Player.Group = Tools.GetGroup(user.Group);
                     args.Player.UserAccountName = args.Parameters[0];
-                    args.Player.UserID = TShock.Users.GetUserID(args.Player.UserAccountName);
+                    var gotuser = TShock.Users.GetUserByName(args.Player.UserAccountName);
+                    args.Player.UserID = gotuser != null ? gotuser.ID : -1;
                     args.Player.IsLoggedIn = true;
                     args.Player.SendMessage("Authenticated as " + args.Parameters[0] + " successfully.", Color.LimeGreen);
                     Log.ConsoleInfo(args.Player.Name + " authenticated successfully as user: " + args.Parameters[0]);
@@ -357,7 +358,8 @@ namespace TShockAPI
                     if (user.Password.ToUpper() == encrPass.ToUpper())
                     {
                         args.Player.SendMessage("You changed your password!", Color.Green);
-                        TShock.Users.SetUserPassword(user, args.Parameters[1]); // SetUserPassword will hash it for you.
+                        user.Password = Tools.HashPassword(args.Parameters[1]);
+                        TShock.Users.UpdateUsers();
                         Log.ConsoleInfo(args.Player.IP + " named " + args.Player.Name + " changed the password of Account " + user.Name);
                     }
                     else
@@ -505,11 +507,17 @@ namespace TShockAPI
 
                 try
                 {
-
+                    var gotuser = TShock.Users.GetUser(user);
+                    if (gotuser == null)
+                    {
+                        args.Player.SendMessage("User {0} not found".SFormat(user.Name), Color.Red);
+                        return;
+                    }
                     if (args.Parameters.Count == 3)
                     {
                         args.Player.SendMessage("Changed the password of " + user.Name + "!", Color.Green);
-                        TShock.Users.SetUserPassword(user, args.Parameters[2]);
+                        user.Password = Tools.HashPassword(args.Parameters[2]);
+                        TShock.Users.UpdateUsers();
                         Log.ConsoleInfo(args.Player.Name + " changed the password of Account " + user.Name);
                     }
                     else
@@ -534,19 +542,24 @@ namespace TShockAPI
 
                 try
                 {
-
                     if (args.Parameters.Count == 3)
                     {
+                        var gotuser = TShock.Users.GetUser(user);
+                        if (gotuser == null)
+                        {
+                            args.Player.SendMessage("User {0} not found".SFormat(string.IsNullOrEmpty(user.Address) ? user.Name : user.Address));
+                            return;
+                        }
+                        gotuser.Group = args.Parameters[2];
+                        TShock.Users.UpdateUsers();
                         if (!string.IsNullOrEmpty(user.Address))
                         {
                             args.Player.SendMessage("IP Address " + user.Address + " has been changed to group " + args.Parameters[2] + "!", Color.Green);
-                            TShock.Users.SetUserGroup(user, args.Parameters[2]);
                             Log.ConsoleInfo(args.Player.Name + " changed IP Address " + user.Address + " to group " + args.Parameters[2]);
                         }
                         else
                         {
                             args.Player.SendMessage("Account " + user.Name + " has been changed to group " + args.Parameters[2] + "!", Color.Green);
-                            TShock.Users.SetUserGroup(user, args.Parameters[2]);
                             Log.ConsoleInfo(args.Player.Name + " changed Account " + user.Name + " to group " + args.Parameters[2]);
                         }
                     }
@@ -1810,7 +1823,7 @@ namespace TShockAPI
                             }
                             if ((playerID = TShock.Users.GetUserByName(playerName)) != null)
                             {
-                                if (TShock.Regions.AddNewUser(regionName, playerName))
+                                if (TShock.Regions.AddNewUser(regionName, playerID))
                                 {
                                     args.Player.SendMessage("Added user " + playerName + " to " + regionName, Color.Yellow);
                                 }

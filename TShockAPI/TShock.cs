@@ -158,7 +158,7 @@ namespace TShockAPI
                 Backups.Interval = Config.BackupInterval;
                 Bans = new BanManager(DB);
                 Warps = new WarpManager(DB.Connection);
-                Users = new UserManager(DB.Connection);
+                Users = new UserManager(DB);
                 Groups = new GroupManager(DB.Connection);
                 Groups.LoadPermisions();
                 Regions = new RegionManager(DB.Connection);

@@ -152,11 +152,11 @@ namespace TShockAPI.DB
     [Table(Name = "Bans")]
     public class Ban
     {
-        [Column(Name = "IP", DbType = "TEXT", IsPrimaryKey = true, IsDbGenerated = false, AutoSync = AutoSync.Never, CanBeNull = false)]
+        [Column(Name = "IP", DbType = "TEXT", IsPrimaryKey = true, CanBeNull = false)]
         public string IP { get; set; }
-        [Column(Name = "Name", DbType = "TEXT", IsDbGenerated = false, AutoSync = AutoSync.Never)]
+        [Column(Name = "Name", DbType = "TEXT")]
         public string Name { get; set; }
-        [Column(Name = "Reason", DbType = "TEXT", IsDbGenerated = false, AutoSync = AutoSync.Never)]
+        [Column(Name = "Reason", DbType = "TEXT")]
         public string Reason { get; set; }
 
         public Ban(string ip, string name, string reason)

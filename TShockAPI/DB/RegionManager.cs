@@ -347,7 +347,7 @@ namespace TShockAPI.DB
             return  MergedIDs.Split(new []{','}, StringSplitOptions.RemoveEmptyEntries).ToList();
         }
 
-        public bool AddNewUser(string regionName, String userName)
+        public bool AddNewUser(string regionName, User user)
         {
             try
             {
@@ -359,9 +359,9 @@ namespace TShockAPI.DB
                 }
 
                 if (string.IsNullOrEmpty(MergedIDs))
-                    MergedIDs = Convert.ToString(TShock.Users.GetUserID(userName));
+                    MergedIDs = Convert.ToString(user.ID);
                 else
-                    MergedIDs = MergedIDs + "," + Convert.ToString(TShock.Users.GetUserID(userName));
+                    MergedIDs = MergedIDs + "," + Convert.ToString(user.ID);
 
                 if (database.Query("UPDATE Regions SET UserIds=@0 WHERE RegionName=@1 AND WorldID=@2", MergedIDs, regionName, Main.worldID.ToString()) > 0)
                 {
