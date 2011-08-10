@@ -42,7 +42,7 @@ namespace TShockAPI
             Commands.ChatCommands.Add(flush);
 #endif
 
-            ServerHooks.SendBytes += ServerHooks_SendBytes;
+            NetHooks.SendBytes += ServerHooks_SendBytes;
             ServerHooks.SocketReset += ServerHooks_SocketReset;
             GameHooks.PostUpdate += GameHooks_Update;
         }
@@ -66,9 +66,9 @@ namespace TShockAPI
                 Commands.ChatCommands.Remove(dump);
                 Commands.ChatCommands.Remove(flush);
 #endif
-                ServerHooks.SendBytes -= ServerHooks_SendBytes;
-                ServerHooks.SocketReset -= ServerHooks_SocketReset;
-                GameHooks.PostUpdate -= GameHooks_Update;
+            NetHooks.SendBytes -= ServerHooks_SendBytes;
+            ServerHooks.SocketReset -= ServerHooks_SocketReset;
+            GameHooks.PostUpdate -= GameHooks_Update;
             }
         }
 

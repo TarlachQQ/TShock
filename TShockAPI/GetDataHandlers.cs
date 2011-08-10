@@ -102,10 +102,10 @@ namespace TShockAPI
                 {PacketTypes.PlayerUpdate, HandlePlayerUpdate},
                 {PacketTypes.Tile, HandleTile},
                 {PacketTypes.TileSendSquare, HandleSendTileSquare},
-                {PacketTypes.NPCUpdate, HandleNpcUpdate},
+                {PacketTypes.NpcUpdate, HandleNpcUpdate},
                 {PacketTypes.PlayerDamage, HandlePlayerDamage},
                 {PacketTypes.ProjectileNew, HandleProjectileNew},
-                {PacketTypes.TogglePVP, HandleTogglePvp},
+                {PacketTypes.TogglePvp, HandleTogglePvp},
                 {PacketTypes.TileKill, HandleTileKill},
                 {PacketTypes.PlayerKillMe, HandlePlayerKillMe},
                 {PacketTypes.LiquidSet, HandleLiquidSet},
@@ -145,8 +145,9 @@ namespace TShockAPI
         {
             byte playerid = args.Data.ReadInt8();
             byte hair = args.Data.ReadInt8();
+            byte male = args.Data.ReadInt8();
             args.Data.Position += 21;
-            bool hardcore = args.Data.ReadBoolean();
+            bool difficulty = args.Data.ReadBoolean();
             string name = Encoding.ASCII.GetString(args.Data.ReadBytes((int)(args.Data.Length - args.Data.Position - 1)));
 
             if (hair >= Main.maxHair)
@@ -179,11 +180,11 @@ namespace TShockAPI
             {
                 return Tools.HandleGriefer(args.Player, "Sent client info more than once");
             }
-            if (TShock.Config.HardcoreOnly && !hardcore)
+            /*if (TShock.Config.HardcoreOnly && !hardcore)
             {
                 Tools.ForceKick(args.Player, "Server is set to hardcore characters only!");
                 return true;
-            }
+            }*/
 
             args.Player.ReceivedInfo = true;
             return false;
@@ -660,7 +661,8 @@ namespace TShockAPI
 
             if (args.Player.InitSpawn && args.TPlayer.inventory[args.TPlayer.selectedItem].type != 50)
             {
-                if (args.TPlayer.hardCore && (TShock.Config.KickOnHardcoreDeath || TShock.Config.BanOnHardcoreDeath))
+                /*if (args.TPlayer.hardCore && (TShock.Config.KickOnHardcoreDeath || TShock.Config.BanOnHardcoreDeath))
+                {
                     if (args.TPlayer.selectedItem != 50)
                     {
                         if (TShock.Config.BanOnHardcoreDeath)
@@ -674,6 +676,7 @@ namespace TShockAPI
                         }
                         return true;
                     }
+                }*/
             }
             else
                 args.Player.InitSpawn = true;

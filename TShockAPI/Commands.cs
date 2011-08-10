@@ -166,7 +166,7 @@ namespace TShockAPI
             ChatCommands.Add(new Command(PasswordUser, "password") { DoLog = false });
             ChatCommands.Add(new Command(RegisterUser, "register") { DoLog = false });
             ChatCommands.Add(new Command("root-only", ManageUsers, "user") { DoLog = false });
-            ChatCommands.Add(new Command("root-only", GrabUserIP, "ip"));
+            ChatCommands.Add(new Command("root-only", GrabUserUserInfo, "userinfo", "ui"));
             ChatCommands.Add(new Command("root-only", AuthVerify, "auth-verify"));
             ChatCommands.Add(new Command(AttemptLogin, "login") { DoLog = false });
             ChatCommands.Add(new Command("cfg", Broadcast, "broadcast", "bc"));
@@ -592,11 +592,11 @@ namespace TShockAPI
 
         #region Player Management Commands
 
-        private static void GrabUserIP(CommandArgs args)
+        private static void GrabUserUserInfo(CommandArgs args)
         {
             if (args.Parameters.Count < 1)
             {
-                args.Player.SendMessage("Invalid syntax! Proper syntax: /ip <player>", Color.Red);
+                args.Player.SendMessage("Invalid syntax! Proper syntax: /userinfo <player>", Color.Red);
                 return;
             }
 
@@ -608,7 +608,7 @@ namespace TShockAPI
             }
             try
             {
-                args.Player.SendMessage(players[0].IP, Color.Green);
+                args.Player.SendMessage("IP Address: " + players[0].IP + " Logged In As: " + players[0].UserAccountName, Color.Green);
             }
             catch (Exception)
             {
@@ -1309,7 +1309,7 @@ namespace TShockAPI
 
                 //Add up to pagelimit names to a list
                 var nameslist = new List<string>();
-                for (int i = 0; i < pagelimit && i + (page * pagelimit) < warps.Count; i++)
+                for (int i = (page * pagelimit); (i < ((page * pagelimit) + pagelimit)) && i < warps.Count; i++)
                 {
                     nameslist.Add(warps[i].WarpName);
                 }
@@ -1323,7 +1323,7 @@ namespace TShockAPI
 
                 if (page < pagecount)
                 {
-                    args.Player.SendMessage(string.Format("Type /warp list {0} for more warps.", (page + 1)), Color.Yellow);
+                    args.Player.SendMessage(string.Format("Type /warp list {0} for more warps.", (page + 2)), Color.Yellow);
                 }
             }
             else
@@ -1518,7 +1518,8 @@ namespace TShockAPI
         private static void Reload(CommandArgs args)
         {
             FileTools.SetupConfig();
-            args.Player.SendMessage("Configuration reload complete. Some changes may require server restart.");
+            TShock.Groups.LoadPermisions();
+            args.Player.SendMessage("Configuration & Permissions reload complete. Some changes may require server restart.");
         }
 
         private static void ServerPassword(CommandArgs args)
@@ -1881,7 +1882,7 @@ namespace TShockAPI
 
                         //Add up to pagelimit names to a list
                         var nameslist = new List<string>();
-                        for (int i = 0; i < pagelimit && i + (page * pagelimit) < regions.Count; i++)
+                        for (int i = (page * pagelimit); (i < ((page * pagelimit) + pagelimit)) && i < regions.Count; i++)
                         {
                             nameslist.Add(regions[i].Name);
                         }
@@ -1895,7 +1896,7 @@ namespace TShockAPI
 
                         if (page < pagecount)
                         {
-                            args.Player.SendMessage(string.Format("Type /region list {0} for more regions.", (page + 1)), Color.Yellow);
+                            args.Player.SendMessage(string.Format("Type /region list {0} for more regions.", (page + 2)), Color.Yellow);
                         }
 
                         break;

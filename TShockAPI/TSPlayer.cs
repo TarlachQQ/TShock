@@ -189,57 +189,52 @@ namespace TShockAPI
 
         public bool Teleport(int tilex, int tiley)
         {
-            if (!TpLock)
+            InitSpawn = false;
+
+            SendTeleport(tilex, tiley);
+
+            //150 Should avoid all client crash errors
+            //The error occurs when a tile trys to update which the client hasnt load yet, Clients only update tiles withen 150 blocks
+            //Try 300 if it does not work (Higher number - Longer load times - Less chance of error)
+            if (!SendTileSquare(tilex, tiley, 150))
             {
-                InitSpawn = false;
+                SendMessage("Warning, teleport failed due to being too close to the edge of the map.", Color.Red);
+                return false;
+            }
 
-                SendTeleport(tilex, tiley);
-
-                //150 Should avoid all client crash errors
-                //The error occurs when a tile trys to update which the client hasnt load yet, Clients only update tiles withen 150 blocks
-                //Try 300 if it does not work (Higher number - Longer load times - Less chance of error)
-                if (!SendTileSquare(tilex, tiley))
+            if (TPlayer.SpawnX > 0 && TPlayer.SpawnY > 0)
+            {
+                int spX = TPlayer.SpawnX;
+                int spY = TPlayer.SpawnY;
+                Main.tile[spX, spY].active = false;
+                SendTileSquare(spX, spY);
+                Spawn();
+                Main.tile[spX, spY].active = true;
+                SendTileSquare(spX, spY);
+                oldSpawn = new Vector2(spX, spY);
+            }
+            else
+            {
+                //Checks if Player has spawn point set (Server may think player does not have spawn)
+                if (oldSpawn != Vector2.Zero)
                 {
-                    SendMessage("Warning, teleport failed due to being too close to the edge of the map.", Color.Red);
-                    return false;
-                }
-
-                if (TPlayer.SpawnX > 0 && TPlayer.SpawnY > 0)
-                {
-                    int spX = TPlayer.SpawnX;
-                    int spY = TPlayer.SpawnY;
-                    Main.tile[spX, spY].active = false;
-                    SendTileSquare(spX, spY);
+                    Main.tile[(int)oldSpawn.X, (int)oldSpawn.Y].active = false;
+                    SendTileSquare((int)oldSpawn.X, (int)oldSpawn.Y);
                     Spawn();
-                    Main.tile[spX, spY].active = true;
-                    SendTileSquare(spX, spY);
-                    oldSpawn = new Vector2(spX, spY);
+                    Main.tile[(int)oldSpawn.X, (int)oldSpawn.Y].active = true;
+                    SendTileSquare((int)oldSpawn.X, (int)oldSpawn.Y);
+                    NetMessage.syncPlayers();
                 }
+                //Player has no spawn point set
                 else
                 {
-                    //Checks if Player has spawn point set (Server may think player does not have spawn)
-                    if (oldSpawn != Vector2.Zero)
-                    {
-                        Main.tile[(int)oldSpawn.X, (int)oldSpawn.Y].active = false;
-                        SendTileSquare((int)oldSpawn.X, (int)oldSpawn.Y);
-                        Spawn();
-                        Main.tile[(int)oldSpawn.X, (int)oldSpawn.Y].active = true;
-                        SendTileSquare((int)oldSpawn.X, (int)oldSpawn.Y);
-                        NetMessage.syncPlayers();
-                    }
-                      //Player has no spawn point set
-                    else
-                    {
-                        Spawn();
-                    }
+                    Spawn();
                 }
-
-                SendTeleport(Main.spawnTileX, Main.spawnTileY);
-
-                return true;
             }
-            SendMessage("Cannot teleport due to TP Lock", Color.Red);
-            return false;
+
+            SendTeleport(Main.spawnTileX, Main.spawnTileY);
+
+            return true;
         }
 
         public void Spawn()
@@ -303,7 +298,7 @@ namespace TShockAPI
                 All.SendMessage(string.Format("{0} has {1} PvP!", Name, pvp ? "enabled" : "disabled"), Main.teamColor[Team]);
             }
             //Broadcast anyways to keep players synced
-            NetMessage.SendData((int)PacketTypes.TogglePVP, -1, -1, "", Index);
+            NetMessage.SendData((int)PacketTypes.TogglePvp, -1, -1, "", Index);
         }
 
         public virtual void SetTeam(int team)
@@ -424,7 +419,7 @@ namespace TShockAPI
         public void StrikeNPC(int npcid, int damage, float knockBack, int hitDirection)
         {
             Main.npc[npcid].StrikeNPC(damage, knockBack, hitDirection);
-            NetMessage.SendData((int)PacketTypes.NPCStrike, -1, -1, "", npcid, damage, knockBack, hitDirection);
+            NetMessage.SendData((int)PacketTypes.NpcStrike, -1, -1, "", npcid, damage, knockBack, hitDirection);
         }
 
         public void RevertKillTile(Dictionary<Vector2, Tile> destroyedTiles)
