@@ -447,7 +447,7 @@ namespace TShockAPI
 
         private void OnChat(messageBuffer msg, int ply, string text, HandledEventArgs e)
         {
-            if (e.Handled) 
+            if (e.Handled)
                 return;
 
             var tsplr = Players[msg.whoAmI];
@@ -559,7 +559,7 @@ namespace TShockAPI
 
         private void GetData(GetDataEventArgs e)
         {
-            if (e.Handled) 
+            if (e.Handled)
                 return;
 
             PacketTypes type = e.MsgID;
@@ -731,8 +731,8 @@ namespace TShockAPI
 
         public static bool HackedHealth(TSPlayer player)
         {
-            return (player.TPlayer.statManaMax > 200) ||
-                   (player.TPlayer.statMana > 200) ||
+            return (player.TPlayer.statManaMax > 400) ||
+                   (player.TPlayer.statMana > 400) ||
                    (player.TPlayer.statLifeMax > 400) ||
                    (player.TPlayer.statLife > 400);
         }
@@ -758,22 +758,7 @@ namespace TShockAPI
             RconHandler.Password = file.RconPassword;
             RconHandler.ListenPort = file.RconPort;
 
-            Type hash;
-            if (Tools.HashTypes.TryGetValue(file.HashAlgorithm, out hash))
-            {
-                lock (Tools.HashAlgo)
-                {
-                    if (!Tools.HashAlgo.GetType().Equals(hash))
-                    {
-                        Tools.HashAlgo.Dispose();
-                        Tools.HashAlgo = (HashAlgorithm)Activator.CreateInstance(Tools.HashTypes[file.HashAlgorithm]);
-                    }
-                }
-            }
-            else
-            {
-                Log.ConsoleError("Invalid or not supported hashing algorithm: " + file.HashAlgorithm);
-            }
+            Tools.HashAlgo = file.HashAlgorithm;
         }
     }
 }
